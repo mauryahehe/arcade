@@ -1,0 +1,985 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Ludo</title>
+<style>
+/* =========================================================================
+   LUDO — single-file, zero-dependency web game
+   Board: Canvas · Tokens/FX: DOM + Web Animations API · Dice: CSS 3D cube
+   ========================================================================= */
+*{box-sizing:border-box}
+:root{--pc:#e53935}
+html,body{margin:0;height:100%;overflow:hidden;background:#11141f;
+  font-family:"Segoe UI",system-ui,-apple-system,Roboto,"Helvetica Neue",sans-serif;
+  color:#eef1ff;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none}
+#app{position:relative;width:100%;height:100%;padding:10px;display:flex;align-items:center;justify-content:center;gap:10px;
+  background:radial-gradient(circle at 30% 20%,#252c48,#11141f 72%)}
+#app.portrait{flex-direction:column}
+
+/* ---------- Board ---------- */
+#boardWrap{position:relative;flex:none;width:300px;height:300px;border-radius:12px;
+  box-shadow:0 12px 34px rgba(0,0,0,.55),0 0 0 3px rgba(255,255,255,.06)}
+#board,#confetti{position:absolute;inset:0;width:100%;height:100%;border-radius:12px;display:block}
+#confetti{pointer-events:none;z-index:60}
+#tokens,#fx{position:absolute;inset:0}
+#tokens{z-index:10;pointer-events:none}
+#fx{z-index:20;pointer-events:none}
+
+/* Active player's base glow */
+#baseGlow{position:absolute;width:40%;height:40%;border-radius:10px;z-index:4;pointer-events:none;opacity:0;
+  border:3px solid rgba(255,255,255,.95);transition:left .35s ease,top .35s ease,opacity .3s;
+  animation:baseGlow 1.6s ease-in-out infinite}
+@keyframes baseGlow{0%,100%{box-shadow:0 0 6px 1px var(--pc),inset 0 0 8px var(--pc)}50%{box-shadow:0 0 22px 6px var(--pc),inset 0 0 18px var(--pc)}}
+
+/* ---------- Tokens ---------- */
+.token{position:absolute;width:calc(100% / 15 * .76);aspect-ratio:1/1;border-radius:50%;
+  transform:translate(-50%,-50%);pointer-events:auto;
+  background:radial-gradient(circle at 32% 28%,var(--tl) 0 16%,var(--tc) 48%,var(--td) 100%);
+  border:2px solid #fff;box-shadow:0 2px 4px rgba(0,0,0,.45);will-change:transform,left,top}
+.token::before{content:"";position:absolute;inset:24%;border-radius:50%;border:2px solid rgba(255,255,255,.7);
+  background:radial-gradient(circle at 35% 30%,rgba(255,255,255,.35),transparent 70%)}
+.token.movable{cursor:pointer;z-index:30}
+.token.movable::after{content:"";position:absolute;inset:-30%;border-radius:50%;border:3px solid #fff;
+  box-shadow:0 0 10px 3px var(--tc),inset 0 0 6px var(--tc);animation:pulse .9s ease-in-out infinite}
+@keyframes pulse{0%,100%{transform:scale(.82);opacity:1}50%{transform:scale(1.12);opacity:.45}}
+
+/* ---------- Board FX ---------- */
+.fx{position:absolute;width:calc(100% / 15);height:calc(100% / 15);transform:translate(-50%,-50%)}
+.ripple{border-radius:50%;border:3px solid #ffd54f;animation:ripple .75s ease-out forwards}
+.ripple.r2{animation-delay:.15s;opacity:0}
+@keyframes ripple{0%{transform:translate(-50%,-50%) scale(.4);opacity:1}100%{transform:translate(-50%,-50%) scale(2.3);opacity:0}}
+.flash{border-radius:20%;background:radial-gradient(circle,#fff 0,#ff5252 45%,rgba(255,82,82,0) 72%);animation:flash .5s ease-out forwards}
+@keyframes flash{0%{transform:translate(-50%,-50%) scale(.6);opacity:1}100%{transform:translate(-50%,-50%) scale(2.4);opacity:0}}
+
+/* ---------- Side panel ---------- */
+#panel{flex:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:14px 12px;
+  background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:16px}
+#app.portrait #panel{flex-direction:row;justify-content:space-between;padding:8px 12px;gap:10px}
+#info{display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center;min-width:0;width:100%}
+#app.portrait #info{align-items:flex-start;text-align:left;flex:1;width:auto}
+.brand{font-weight:900;letter-spacing:.28em;font-size:22px;
+  background:linear-gradient(90deg,#e53935,#43a047,#fbc02d,#1e88e5);-webkit-background-clip:text;background-clip:text;color:transparent}
+#app.portrait .brand{font-size:15px}
+.turn{display:flex;align-items:center;gap:8px;font-weight:700;font-size:15px}
+#turnChip{flex:none;width:14px;height:14px;border-radius:50%;background:var(--pc);box-shadow:0 0 8px var(--pc);transition:background .3s}
+#msg{font-size:12.5px;opacity:.85;min-height:2.6em;line-height:1.3}
+#ctrls{display:flex;flex-direction:column;gap:6px;width:100%}
+#app.portrait #ctrls{width:auto}
+#ctrls button{font:inherit;background:rgba(255,255,255,.1);color:#fff;border:1px solid rgba(255,255,255,.16);border-radius:10px;
+  padding:7px 10px;font-size:13px;cursor:pointer;white-space:nowrap;transition:background .2s}
+#ctrls button:hover{background:rgba(255,255,255,.2)}
+
+/* ---------- 3D Dice ---------- */
+#diceBox{--die:72px;--h:calc(var(--die) / 2);flex:none;padding:calc(var(--die) * .3);border-radius:20px;
+  border:3px solid var(--pc);background:radial-gradient(circle at 50% 40%,rgba(255,255,255,.1),rgba(0,0,0,.25));
+  box-shadow:0 0 16px -4px var(--pc);cursor:default;transition:border-color .3s,box-shadow .3s,opacity .3s}
+#diceBox.ready{cursor:pointer;animation:diceReady 1.1s ease-in-out infinite}
+@keyframes diceReady{0%,100%{box-shadow:0 0 10px -2px var(--pc)}50%{box-shadow:0 0 26px 4px var(--pc)}}
+.scene{width:var(--die);height:var(--die);perspective:calc(var(--die) * 5)}
+.tilt{width:100%;height:100%;transform-style:preserve-3d;transform:rotateX(-14deg) rotateY(18deg)}
+.cube{width:100%;height:100%;position:relative;transform-style:preserve-3d;transform:rotateX(0deg) rotateY(0deg) rotateZ(0deg)}
+.face{position:absolute;inset:0;border-radius:16%;display:grid;grid-template:repeat(3,1fr)/repeat(3,1fr);padding:13%;
+  background:linear-gradient(145deg,#ffffff,#e4e6ef);box-shadow:inset 0 0 calc(var(--die) * .09) rgba(0,0,0,.2);
+  backface-visibility:hidden;-webkit-backface-visibility:hidden}
+.pip{width:72%;height:72%;margin:auto;border-radius:50%;background:radial-gradient(circle at 35% 32%,#666,#111 70%)}
+.face.f1 .pip{background:radial-gradient(circle at 35% 32%,#ff7a7a,#b71c1c 70%);width:82%;height:82%}
+
+/* ---------- Modals ---------- */
+.modal{position:absolute;inset:0;display:none;align-items:center;justify-content:center;background:rgba(8,10,18,.72);
+  backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);z-index:100;padding:12px}
+.modal.show{display:flex}
+.card{background:#1f2538;border:1px solid rgba(255,255,255,.12);border-radius:18px;padding:22px;width:min(380px,100%);
+  max-height:100%;overflow:auto;box-shadow:0 20px 50px rgba(0,0,0,.5);animation:pop .35s cubic-bezier(.2,.9,.3,1.3)}
+@keyframes pop{from{transform:scale(.85);opacity:0}to{transform:scale(1);opacity:1}}
+.card h1{margin:0 0 4px;text-align:center;font-size:34px;letter-spacing:.3em;font-weight:900;
+  background:linear-gradient(90deg,#e53935,#43a047,#fbc02d,#1e88e5);-webkit-background-clip:text;background-clip:text;color:transparent}
+.card .sub{text-align:center;opacity:.65;font-size:13px;margin:0 0 16px}
+.label{font-size:12px;text-transform:uppercase;letter-spacing:.12em;opacity:.6;margin:14px 0 6px}
+.seg{display:flex;background:rgba(255,255,255,.08);border-radius:10px;padding:3px;gap:3px}
+.seg button{flex:1;font:inherit;border:0;background:transparent;color:#cfd5ea;padding:8px 10px;border-radius:8px;cursor:pointer;font-weight:600;font-size:14px}
+.seg button.on{background:#fff;color:#141826}
+.seg.small{flex:none}
+.seg.small button{padding:5px 10px;font-size:13px;white-space:nowrap}
+.prow{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:8px 0}
+.pname{display:flex;gap:8px;align-items:center;font-weight:700}
+.dot{display:inline-block;width:16px;height:16px;border-radius:50%;box-shadow:0 0 0 2px rgba(255,255,255,.8)}
+.primary{width:100%;margin-top:16px;padding:12px;border:0;border-radius:12px;font:inherit;font-weight:800;font-size:16px;cursor:pointer;
+  background:linear-gradient(135deg,#ff6b5b,#e53935);color:#fff;box-shadow:0 6px 18px rgba(229,57,53,.4)}
+.secondary{width:100%;margin-top:8px;padding:10px;border:1px solid rgba(255,255,255,.2);border-radius:12px;font:inherit;font-weight:600;
+  cursor:pointer;background:transparent;color:#fff}
+.rank{display:flex;align-items:center;gap:10px;padding:10px 12px;margin:6px 0;border-radius:12px;background:rgba(255,255,255,.06);
+  animation:pop .4s both}
+.rank.r1{background:linear-gradient(90deg,rgba(255,215,0,.28),rgba(255,255,255,.05));transform-origin:center}
+.rank .medal{font-size:22px;width:34px;text-align:center;font-weight:800}
+.rank .ptype{margin-left:auto;opacity:.6;font-size:13px}
+</style>
+</head>
+<body>
+<div id="app">
+  <!-- Board: canvas background + DOM layers for glow, tokens, effects and confetti -->
+  <div id="boardWrap">
+    <canvas id="board"></canvas>
+    <div id="baseGlow"></div>
+    <div id="tokens"></div>
+    <div id="fx"></div>
+    <canvas id="confetti"></canvas>
+  </div>
+
+  <!-- Side / bottom control panel -->
+  <div id="panel">
+    <div id="info">
+      <div class="brand">LUDO</div>
+      <div class="turn"><span id="turnChip"></span><span id="turnName">—</span></div>
+      <div id="msg">Choose players to begin.</div>
+    </div>
+    <div id="diceBox" title="Roll the die (Space)">
+      <div class="scene" id="scene"><div class="tilt"><div class="cube" id="cube"></div></div></div>
+    </div>
+    <div id="ctrls">
+      <button id="restartBtn">↻ Restart</button>
+      <button id="menuBtn">☰ New Game</button>
+      <button id="muteBtn">🔊 Sound</button>
+    </div>
+  </div>
+
+  <!-- Start / setup overlay -->
+  <div id="overlay" class="modal show">
+    <div class="card">
+      <h1>LUDO</h1>
+      <p class="sub">Roll a 6 to unlock · capture rivals · race home</p>
+      <div class="label">Players</div>
+      <div class="seg" id="modeSeg">
+        <button data-n="2">2 Players</button>
+        <button data-n="4" class="on">4 Players</button>
+      </div>
+      <div class="label">Who plays each colour?</div>
+      <div id="playerRows"></div>
+      <button class="primary" id="startBtn">Start Game</button>
+    </div>
+  </div>
+
+  <!-- Podium / leaderboard -->
+  <div id="podium" class="modal">
+    <div class="card">
+      <h1>🏆</h1>
+      <p class="sub">Final standings</p>
+      <div id="rankList"></div>
+      <button class="primary" id="againBtn">Play Again</button>
+      <button class="secondary" id="podiumMenuBtn">Change Players</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+'use strict';
+
+/* =========================================================================
+   1. CONSTANTS & BOARD GEOMETRY
+   Coordinates: the board is 15×15 cells. Grid cells are [row, col].
+   Continuous positions {x, y} are measured in cell units (cell centre = c+.5).
+   ========================================================================= */
+const ORDER = ['red', 'green', 'yellow', 'blue'];          // clockwise turn order
+
+const COL = {
+  red:    { name:'Red',    c:'#e53935', l:'#ff9e95', d:'#8e1512', soft:'#ffd6d3', off:0,  bx:0, by:0,
+            home:[[7,1],[7,2],[7,3],[7,4],[7,5]],       fin:{x:6.5, y:7.5} },
+  green:  { name:'Green',  c:'#43a047', l:'#b2e0b4', d:'#1b5e20', soft:'#d3efd4', off:13, bx:9, by:0,
+            home:[[1,7],[2,7],[3,7],[4,7],[5,7]],       fin:{x:7.5, y:6.5} },
+  yellow: { name:'Yellow', c:'#fbc02d', l:'#fff6b0', d:'#a67c00', soft:'#fff1c2', off:26, bx:9, by:9,
+            home:[[7,13],[7,12],[7,11],[7,10],[7,9]],   fin:{x:8.5, y:7.5} },
+  blue:   { name:'Blue',   c:'#1e88e5', l:'#a6d4fb', d:'#0d3c7a', soft:'#cfe6fb', off:39, bx:0, by:9,
+            home:[[13,7],[12,7],[11,7],[10,7],[9,7]],   fin:{x:7.5, y:8.5} },
+};
+
+/* The 52-cell shared outer track, clockwise, starting at Red's start square. */
+const TRACK = [
+  [6,1],[6,2],[6,3],[6,4],[6,5],          // 0-4
+  [5,6],[4,6],[3,6],[2,6],[1,6],[0,6],    // 5-10
+  [0,7],[0,8],                            // 11-12
+  [1,8],[2,8],[3,8],[4,8],[5,8],          // 13-17 (13 = Green start)
+  [6,9],[6,10],[6,11],[6,12],[6,13],[6,14], // 18-23
+  [7,14],[8,14],                          // 24-25
+  [8,13],[8,12],[8,11],[8,10],[8,9],      // 26-30 (26 = Yellow start)
+  [9,8],[10,8],[11,8],[12,8],[13,8],[14,8], // 31-36
+  [14,7],[14,6],                          // 37-38
+  [13,6],[12,6],[11,6],[10,6],[9,6],      // 39-43 (39 = Blue start)
+  [8,5],[8,4],[8,3],[8,2],[8,1],[8,0],    // 44-49
+  [7,0],[6,0]                             // 50-51
+];
+const START_IDX = new Set([0, 13, 26, 39]);
+const SAFE = new Set([0, 8, 13, 21, 26, 34, 39, 47]);  // 4 start squares + 4 star squares
+const SLOTS = [[2,2],[4,2],[2,4],[4,4]];               // token slots inside a home base
+
+/* Token progress: -1 = in base, 0..50 = outer track, 51..55 = home column, 56 = finished */
+const LAST_TRACK = 50, FINISH = 56;
+
+const HOP_MS = 140;
+const SH0 = '0 2px 4px rgba(0,0,0,.45)';
+const SH1 = '0 12px 16px rgba(0,0,0,.32)';
+
+/* =========================================================================
+   2. DOM REFERENCES
+   ========================================================================= */
+const $ = id => document.getElementById(id);
+const app = $('app'), boardWrap = $('boardWrap'), boardCv = $('board'), confCv = $('confetti');
+const tokensEl = $('tokens'), fxEl = $('fx'), baseGlow = $('baseGlow');
+const panel = $('panel'), diceBox = $('diceBox'), scene = $('scene'), cube = $('cube');
+const msgEl = $('msg'), turnName = $('turnName');
+const overlay = $('overlay'), podium = $('podium');
+
+/* =========================================================================
+   3. SOUND — synthesized with the Web Audio API (no audio files)
+   ========================================================================= */
+const Sound = {
+  ctx:null, master:null, nb:null, muted:false,
+  init(){
+    try{
+      if(!this.ctx){
+        const AC = window.AudioContext || window.webkitAudioContext;
+        if(!AC) return;
+        this.ctx = new AC();
+        this.master = this.ctx.createGain();
+        this.master.gain.value = .7;
+        this.master.connect(this.ctx.destination);
+        const len = Math.floor(this.ctx.sampleRate * .5);          // shared white-noise buffer
+        this.nb = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
+        const d = this.nb.getChannelData(0);
+        for(let i=0;i<len;i++) d[i] = Math.random()*2 - 1;
+      }
+      if(this.ctx.state === 'suspended') this.ctx.resume();
+    }catch(e){ /* audio unsupported — silently ignore */ }
+  },
+  ok(){ return this.ctx && !this.muted; },
+  tone(f, dur, o={}){
+    if(!this.ok()) return;
+    const c=this.ctx, t=c.currentTime+(o.t||0);
+    const osc=c.createOscillator(), g=c.createGain();
+    osc.type=o.type||'sine';
+    osc.frequency.setValueAtTime(f,t);
+    if(o.to) osc.frequency.exponentialRampToValueAtTime(o.to,t+dur);
+    const v=o.vol ?? .2;
+    g.gain.setValueAtTime(.0001,t);
+    g.gain.exponentialRampToValueAtTime(v,t+(o.a||.006));
+    g.gain.exponentialRampToValueAtTime(.0001,t+dur);
+    osc.connect(g); g.connect(this.master);
+    osc.start(t); osc.stop(t+dur+.03);
+  },
+  noise(dur, o={}){
+    if(!this.ok()) return;
+    const c=this.ctx, t=c.currentTime+(o.t||0);
+    const src=c.createBufferSource(); src.buffer=this.nb;
+    const f=c.createBiquadFilter(); f.type=o.type||'bandpass'; f.frequency.value=o.freq||1000; f.Q.value=o.q||1;
+    const g=c.createGain(); const v=o.vol ?? .2;
+    g.gain.setValueAtTime(v,t); g.gain.exponentialRampToValueAtTime(.0001,t+dur);
+    src.connect(f); f.connect(g); g.connect(this.master);
+    src.start(t); src.stop(t+dur+.02);
+  },
+  tick(){ this.noise(.03,{vol:.35,freq:3200,q:4}); this.tone(1400,.025,{type:'square',vol:.03}); },
+  diceLand(){ this.noise(.08,{vol:.4,freq:700,q:1.2}); this.tone(180,.08,{vol:.15,to:120}); },
+  hop(){ this.tone(520,.07,{type:'sine',vol:.22,to:240}); this.noise(.035,{vol:.22,freq:1100,q:2.5}); }, // wooden tap
+  unlock(){ this.tone(330,.16,{type:'triangle',vol:.22,to:660}); this.tone(660,.14,{t:.08,type:'triangle',vol:.16,to:990}); },
+  safe(){ this.tone(988,.3,{vol:.08}); this.tone(1480,.35,{t:.06,vol:.06}); },
+  capture(){ this.tone(700,.4,{type:'sawtooth',vol:.13,to:70}); this.noise(.25,{vol:.4,freq:500,q:.6,type:'lowpass'}); },
+  home(){ [523,659,784,1047].forEach((f,i)=>this.tone(f,.28,{t:i*.08,type:'triangle',vol:.18})); },
+  bad(){ this.tone(320,.25,{type:'square',vol:.08,to:180}); this.tone(200,.35,{t:.18,type:'square',vol:.08,to:100}); },
+  victory(){
+    const seq=[[523,0],[659,.12],[784,.24],[1047,.36],[784,.52],[1047,.64]];
+    seq.forEach(([f,t])=>{ this.tone(f,.32,{t,type:'triangle',vol:.2}); this.tone(f/2,.32,{t,type:'sine',vol:.1}); });
+    this.tone(1319,.9,{t:.8,type:'triangle',vol:.18});
+  }
+};
+
+/* =========================================================================
+   4. CONFETTI — canvas particle system driven by requestAnimationFrame
+   ========================================================================= */
+let boardPx = 300;
+const Confetti = {
+  parts:[], raf:0,
+  burst(x, y, n=60, colors=['#e53935','#43a047','#fbc02d','#1e88e5','#fff'], power=1){
+    const k = boardPx/500;
+    for(let i=0;i<n;i++){
+      const a = Math.random()*Math.PI*2, sp = (2+Math.random()*6)*power*k;
+      this.parts.push({x, y, vx:Math.cos(a)*sp, vy:Math.sin(a)*sp - 3*power*k, g:.16*k,
+        r:Math.random()*6, vr:(Math.random()-.5)*.4, w:(4+Math.random()*5)*k*1.4, h:(3+Math.random()*4)*k*1.4,
+        c:colors[i%colors.length], life:70+Math.random()*60});
+    }
+    if(!this.raf) this.raf = requestAnimationFrame(()=>this.step());
+  },
+  step(){
+    const ctx = confCv.getContext('2d'), dpr = Math.min(window.devicePixelRatio||1,3);
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    ctx.clearRect(0,0,boardPx,boardPx);
+    this.parts = this.parts.filter(p => p.life-- > 0 && p.y < boardPx + 30);
+    for(const p of this.parts){
+      p.vy += p.g; p.vx *= .985; p.x += p.vx; p.y += p.vy; p.r += p.vr;
+      ctx.save(); ctx.translate(p.x,p.y); ctx.rotate(p.r);
+      ctx.globalAlpha = Math.min(1, p.life/25);
+      ctx.fillStyle = p.c; ctx.fillRect(-p.w/2,-p.h/2,p.w,p.h);
+      ctx.restore();
+    }
+    if(this.parts.length) this.raf = requestAnimationFrame(()=>this.step());
+    else { this.raf = 0; ctx.clearRect(0,0,boardPx,boardPx); }
+  }
+};
+
+/* =========================================================================
+   5. GAME STATE & CANCELLATION
+   gameId increments on every restart; any awaiting async step checks it
+   and throws CANCEL so stale animation chains stop cleanly.
+   ========================================================================= */
+let G = null;
+let gameId = 0;
+const CANCEL = Symbol('cancel');
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const alive = id => { if(id !== gameId) throw CANCEL; };
+const wait = async (ms, id) => { await sleep(ms); alive(id); };
+const fin = anim => anim.finished.catch(()=>{});
+
+const setup = { n:4, types:{ red:'human', green:'bot', yellow:'bot', blue:'bot' } };
+
+/* =========================================================================
+   6. GEOMETRY HELPERS
+   ========================================================================= */
+const pct = v => (v/15*100) + '%';
+const tf = (s, ty=-50) => `translate(-50%,${ty}%) scale(${s})`;
+const absIdx = (color, pos) => (COL[color].off + pos) % 52;
+
+/* Continuous board coordinate of a token at a given progress value */
+function coordOf(t, pos = t.pos){
+  const C = COL[t.color];
+  if(pos < 0) return { x:C.bx + SLOTS[t.idx][0], y:C.by + SLOTS[t.idx][1] };
+  if(pos <= LAST_TRACK){ const [r,c] = TRACK[absIdx(t.color,pos)]; return { x:c+.5, y:r+.5 }; }
+  if(pos < FINISH){ const [r,c] = C.home[pos-51]; return { x:c+.5, y:r+.5 }; }
+  return { x:C.fin.x, y:C.fin.y };
+}
+/* Key identifying the physical spot a token occupies (for stacking) */
+function keyOf(t){
+  if(t.pos < 0) return 'b' + t.color + t.idx;
+  if(t.pos <= LAST_TRACK) return 't' + absIdx(t.color, t.pos);
+  if(t.pos < FINISH) return 'h' + t.color + t.pos;
+  return 'f' + t.color;
+}
+const allTokens = () => G ? G.players.flatMap(p => p.tokens) : [];
+const canMove = (t, d) => t.pos === -1 ? d === 6 : (t.pos >= 0 && t.pos + d <= FINISH);
+/* Opponent tokens sitting on a given outer-track index */
+const opponentsAt = (color, abs) => allTokens().filter(o =>
+  o.color !== color && o.pos >= 0 && o.pos <= LAST_TRACK && absIdx(o.color, o.pos) === abs);
+
+/* =========================================================================
+   7. BOARD RENDERING (Canvas, drawn in cell units, crisp at any DPR)
+   ========================================================================= */
+function rr(ctx, x, y, w, h, r){
+  ctx.beginPath();
+  ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath();
+}
+function star(ctx, cx, cy, r, fill){
+  ctx.beginPath();
+  for(let i=0;i<10;i++){
+    const a = -Math.PI/2 + i*Math.PI/5, rad = i%2 ? r*.45 : r;
+    ctx.lineTo(cx + Math.cos(a)*rad, cy + Math.sin(a)*rad);
+  }
+  ctx.closePath(); ctx.fillStyle = fill; ctx.fill();
+}
+function drawBoard(){
+  const dpr = Math.min(window.devicePixelRatio||1, 3);
+  boardCv.width = boardCv.height = Math.round(boardPx*dpr);
+  confCv.width = confCv.height = Math.round(boardPx*dpr);
+  const ctx = boardCv.getContext('2d');
+  const k = boardPx*dpr/15;
+  ctx.setTransform(k,0,0,k,0,0);
+  ctx.clearRect(0,0,15,15);
+
+  // Board background
+  ctx.fillStyle = '#fdfaf2'; rr(ctx,0,0,15,15,.4); ctx.fill();
+
+  const active = G ? G.config.colors : ORDER;
+
+  // Home bases (inactive colours are dimmed)
+  for(const color of ORDER){
+    const C = COL[color];
+    ctx.globalAlpha = active.includes(color) ? 1 : .3;
+    ctx.fillStyle = C.c; rr(ctx, C.bx+.1, C.by+.1, 5.8, 5.8, .4); ctx.fill();
+    ctx.fillStyle = 'rgba(0,0,0,.12)'; rr(ctx, C.bx+.85, C.by+.95, 4.3, 4.3, .5); ctx.fill();
+    ctx.fillStyle = '#fff'; rr(ctx, C.bx+.85, C.by+.85, 4.3, 4.3, .5); ctx.fill();
+    for(const [sx,sy] of SLOTS){
+      ctx.beginPath(); ctx.arc(C.bx+sx, C.by+sy, .62, 0, Math.PI*2);
+      ctx.fillStyle = C.soft; ctx.fill();
+      ctx.lineWidth = .07; ctx.strokeStyle = C.c; ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  // Outer track
+  ctx.lineWidth = .035; ctx.strokeStyle = '#c4bdac';
+  TRACK.forEach(([r,c], i) => {
+    let fill = '#ffffff';
+    for(const color of ORDER) if(COL[color].off === i) fill = COL[color].c;  // coloured start squares
+    ctx.fillStyle = fill; ctx.fillRect(c,r,1,1); ctx.strokeRect(c,r,1,1);
+    if(SAFE.has(i)) star(ctx, c+.5, r+.5, .36, START_IDX.has(i) ? 'rgba(255,255,255,.95)' : '#b9b2a2');
+  });
+
+  // Home columns
+  for(const color of ORDER){
+    const C = COL[color];
+    for(const [r,c] of C.home){ ctx.fillStyle = C.c; ctx.fillRect(c,r,1,1); ctx.strokeRect(c,r,1,1); }
+  }
+
+  // Entry arrows pointing into each home column
+  const arrows = { red:[7,0,0], green:[0,7,Math.PI/2], yellow:[7,14,Math.PI], blue:[14,7,-Math.PI/2] };
+  for(const color of ORDER){
+    const [r,c,a] = arrows[color];
+    ctx.save(); ctx.translate(c+.5, r+.5); ctx.rotate(a);
+    ctx.beginPath(); ctx.moveTo(.28,0); ctx.lineTo(-.15,-.24); ctx.lineTo(-.15,.24); ctx.closePath();
+    ctx.fillStyle = COL[color].c; ctx.fill(); ctx.restore();
+  }
+
+  // Centre finishing triangles
+  const tri = { red:[[6,6],[6,9]], green:[[6,6],[9,6]], yellow:[[9,6],[9,9]], blue:[[6,9],[9,9]] };
+  for(const color of ORDER){
+    const [[x1,y1],[x2,y2]] = tri[color];
+    ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.lineTo(7.5,7.5); ctx.closePath();
+    ctx.fillStyle = COL[color].c; ctx.fill();
+    ctx.lineWidth = .05; ctx.strokeStyle = 'rgba(255,255,255,.85)'; ctx.stroke();
+  }
+  ctx.beginPath(); ctx.arc(7.5,7.5,.32,0,Math.PI*2); ctx.fillStyle='#fff'; ctx.fill();
+
+  ctx.lineWidth = .08; ctx.strokeStyle = '#3a3a3a'; rr(ctx,.04,.04,14.92,14.92,.4); ctx.stroke();
+}
+
+/* =========================================================================
+   8. RESPONSIVE LAYOUT — square board fits any container (iframe-friendly)
+   ========================================================================= */
+function layout(){
+  const W = app.clientWidth, H = app.clientHeight, pad = 10, gap = 10;
+  const land = W >= H*1.2;
+  app.classList.toggle('portrait', !land);
+  let size, die;
+  if(land){
+    const pw = Math.round(Math.max(150, Math.min(230, W*.26)));
+    size = Math.min(H - 2*pad, W - pw - gap - 2*pad);
+    panel.style.width = pw + 'px'; panel.style.height = '';
+    die = Math.max(48, Math.min(84, pw*.38));
+  } else {
+    const ph = Math.round(Math.max(110, Math.min(170, H*.22)));
+    size = Math.min(W - 2*pad, H - ph - gap - 2*pad);
+    size = Math.max(160, Math.floor(size));
+    panel.style.width = size + 'px'; panel.style.height = ph + 'px';
+    die = Math.max(40, Math.min(72, ph*.42));
+  }
+  size = Math.max(160, Math.floor(size));
+  boardPx = size;
+  boardWrap.style.width = boardWrap.style.height = size + 'px';
+  diceBox.style.setProperty('--die', Math.round(die) + 'px');
+  drawBoard();
+}
+
+/* =========================================================================
+   9. TOKEN ELEMENTS & ANIMATION PRIMITIVES (Web Animations API → Promises)
+   ========================================================================= */
+function makeTokenEl(t){
+  const el = document.createElement('div');
+  const C = COL[t.color];
+  el.className = 'token';
+  el.style.setProperty('--tc', C.c); el.style.setProperty('--tl', C.l); el.style.setProperty('--td', C.d);
+  el.addEventListener('click', e => { e.stopPropagation(); onTokenClick(t); });
+  tokensEl.appendChild(el);
+  return el;
+}
+
+/* Place (optionally animate) a token element at board position (x,y) with scale s */
+function place(el, x, y, s, dur=0){
+  const px = el._x, py = el._y, ps = el._s;
+  el._x = x; el._y = y; el._s = s;
+  el.style.left = pct(x); el.style.top = pct(y); el.style.transform = tf(s);
+  if(!dur || px === undefined || (px === x && py === y && ps === s)) return Promise.resolve();
+  return fin(el.animate([
+    { left:pct(px), top:pct(py), transform:tf(ps) },
+    { left:pct(x),  top:pct(y),  transform:tf(s) }
+  ], { duration:dur, easing:'cubic-bezier(.3,.7,.3,1)' }));
+}
+
+/* One tile hop: parabolic lift, scale to 1.25× and wider shadow at the midpoint */
+function hop(el, x, y){
+  const x0 = el._x, y0 = el._y, s0 = el._s;
+  el._x = x; el._y = y; el._s = 1;
+  el.style.left = pct(x); el.style.top = pct(y); el.style.transform = tf(1);
+  return fin(el.animate([
+    { left:pct(x0), top:pct(y0), transform:tf(s0), boxShadow:SH0, easing:'ease-out' },
+    { left:pct((x0+x)/2), top:pct((y0+y)/2), transform:tf(1.25,-95), boxShadow:SH1, offset:.5, easing:'ease-in' },
+    { left:pct(x), top:pct(y), transform:tf(1), boxShadow:SH0 }
+  ], { duration:HOP_MS }));
+}
+
+/* Curved arc flight (unlock pop & captured-token return) */
+function arc(el, x, y, dur, peak=1.4){
+  const x0 = el._x, y0 = el._y, s0 = el._s;
+  el._x = x; el._y = y; el._s = 1;
+  el.style.left = pct(x); el.style.top = pct(y); el.style.transform = tf(1);
+  const mx = (x0+x)/2, my = Math.min(y0,y) - 1.3;
+  return fin(el.animate([
+    { left:pct(x0), top:pct(y0), transform:tf(s0), boxShadow:SH0, easing:'ease-out' },
+    { left:pct(mx), top:pct(my), transform:tf(peak), boxShadow:SH1, offset:.5, easing:'ease-in' },
+    { left:pct(x),  top:pct(y),  transform:tf(1.15), boxShadow:SH0, offset:.85 },
+    { left:pct(x),  top:pct(y),  transform:tf(1), boxShadow:SH0 }
+  ], { duration:dur }));
+}
+
+/* Offsets used to fan out several tokens sharing one tile */
+function stackOffsets(n){
+  const d = .2;
+  if(n === 1) return [[0,0]];
+  if(n === 2) return [[-d,-d],[d,d]];
+  if(n === 3) return [[-d,-d],[d,-d],[0,d]];
+  if(n === 4) return [[-d,-d],[d,-d],[-d,d],[d,d]];
+  return Array.from({length:n}, (_,i) => { const a = i/n*Math.PI*2; return [Math.cos(a)*.26, Math.sin(a)*.26]; });
+}
+
+/* Lay out every token, stacking/offsetting any that share a tile */
+function layoutTokens(dur=0){
+  const groups = new Map();
+  for(const t of allTokens()){
+    const k = keyOf(t);
+    if(!groups.has(k)) groups.set(k, []);
+    groups.get(k).push(t);
+  }
+  const proms = [];
+  for(const [k, arr] of groups){
+    const n = arr.length, offs = stackOffsets(n);
+    const finished = k[0] === 'f';
+    const s = finished ? (n > 1 ? .5 : .6) : (n === 1 ? 1 : n <= 4 ? .68 : .55);
+    const spread = finished ? .8 : 1;
+    arr.forEach((t, i) => {
+      const c = coordOf(t);
+      proms.push(place(t.el, c.x + offs[i][0]*spread, c.y + offs[i][1]*spread, s, dur));
+    });
+  }
+  return Promise.all(proms);
+}
+
+/* Short-lived tile effect (ripple / flash) */
+function tileFx(x, y, cls, ms=900){
+  const d = document.createElement('div');
+  d.className = 'fx ' + cls; d.style.left = pct(x); d.style.top = pct(y);
+  fxEl.appendChild(d);
+  setTimeout(() => d.remove(), ms);
+}
+
+/* =========================================================================
+   10. 3D DICE
+   ========================================================================= */
+const FACE_TF = {
+  1:'translateZ(var(--h))', 6:'rotateY(180deg) translateZ(var(--h))',
+  3:'rotateY(90deg) translateZ(var(--h))', 4:'rotateY(-90deg) translateZ(var(--h))',
+  2:'rotateX(90deg) translateZ(var(--h))', 5:'rotateX(-90deg) translateZ(var(--h))'
+};
+const FACE_ROT = { 1:[0,0], 6:[0,180], 3:[0,-90], 4:[0,90], 2:[-90,0], 5:[90,0] };   // cube rotation that shows face
+const PIPS = { 1:[5], 2:[3,7], 3:[3,5,7], 4:[1,3,7,9], 5:[1,3,5,7,9], 6:[1,4,7,3,6,9] };
+let rot = { x:0, y:0 };
+
+function buildDice(){
+  for(let v=1; v<=6; v++){
+    const f = document.createElement('div');
+    f.className = 'face f' + v; f.style.transform = FACE_TF[v];
+    for(const p of PIPS[v]){
+      const pip = document.createElement('div');
+      pip.className = 'pip';
+      pip.style.gridArea = `${Math.floor((p-1)/3)+1} / ${(p-1)%3+1}`;
+      f.appendChild(pip);
+    }
+    cube.appendChild(f);
+  }
+}
+
+/* Multi-axis tumble with bounce lift, settling exactly on the rolled face */
+async function animateDice(v){
+  const [fx, fy] = FACE_ROT[v];
+  const rnd = (a,b) => a + Math.random()*(b-a);
+  const tx = fx + 360*(2 + (Math.random()*2|0));
+  const ty = fy + 360*(1 + (Math.random()*2|0));
+  const tz = 360 * (Math.random() < .5 ? 1 : -1);
+  const from = `rotateX(${rot.x}deg) rotateY(${rot.y}deg) rotateZ(0deg)`;
+  const mid  = `rotateX(${rot.x + (tx-rot.x)*.6 + rnd(-40,40)}deg) rotateY(${rot.y + (ty-rot.y)*.6 + rnd(-40,40)}deg) rotateZ(${tz*.65}deg)`;
+  const to   = `rotateX(${tx}deg) rotateY(${ty}deg) rotateZ(${tz}deg)`;
+  cube.style.transform = to;
+
+  // Rapid ticking that slows as the die settles
+  [0,45,95,150,210,280,360,450].forEach(ms => setTimeout(() => Sound.tick(), ms));
+
+  const spin = cube.animate([{transform:from},{transform:mid, offset:.5},{transform:to}],
+                            { duration:650, easing:'cubic-bezier(.2,.75,.25,1)' });
+  const lift = scene.animate([
+    { transform:'translateY(0) scale(1)' },
+    { transform:'translateY(-22%) scale(1.18)', offset:.35 },
+    { transform:'translateY(0) scale(.97)', offset:.78 },
+    { transform:'translateY(-5%) scale(1.03)', offset:.89 },
+    { transform:'translateY(0) scale(1)' }
+  ], { duration:650, easing:'ease-out' });
+  await Promise.all([fin(spin), fin(lift)]);
+
+  rot = { x:fx, y:fy };
+  cube.style.transform = `rotateX(${fx}deg) rotateY(${fy}deg) rotateZ(0deg)`;   // normalise (visually identical)
+  Sound.diceLand();
+}
+
+async function rollDice(id){
+  const v = 1 + Math.floor(Math.random()*6);
+  G.state = 'rolling';
+  diceBox.classList.remove('ready');
+  await animateDice(v);
+  alive(id);
+  return v;
+}
+
+/* =========================================================================
+   11. UI HELPERS
+   ========================================================================= */
+const setMsg = t => { msgEl.textContent = t; };
+const pname = p => COL[p.color].name;
+
+function setTurnUI(p){
+  const C = COL[p.color];
+  app.style.setProperty('--pc', C.c);
+  turnName.textContent = `${C.name} · ${p.type === 'bot' ? 'Bot 🤖' : 'Human'}`;
+  baseGlow.style.left = pct(C.bx); baseGlow.style.top = pct(C.by);
+  baseGlow.style.opacity = 1;
+  diceBox.style.opacity = p.type === 'bot' ? .85 : 1;
+}
+
+function clearHighlights(){
+  allTokens().forEach(t => t.el.classList.remove('movable'));
+}
+
+/* =========================================================================
+   12. HUMAN INPUT (promise-based, locked during animations)
+   ========================================================================= */
+function waitHumanRoll(id){
+  return new Promise(res => {
+    G.state = 'awaitRoll';
+    G.resolver = res;
+    diceBox.classList.add('ready');
+  }).then(() => alive(id));
+}
+function waitHumanToken(movable, id){
+  return new Promise(res => {
+    G.state = 'awaitMove';
+    G.movable = new Set(movable);
+    movable.forEach(t => t.el.classList.add('movable'));
+    G.resolver = res;
+  }).then(t => { alive(id); return t; });
+}
+function onDiceClick(){
+  Sound.init();
+  if(!G || G.state !== 'awaitRoll' || !G.resolver) return;   // input lock
+  const r = G.resolver; G.resolver = null; G.state = 'rolling';
+  diceBox.classList.remove('ready');
+  r();
+}
+function onTokenClick(t){
+  Sound.init();
+  if(!G || G.state !== 'awaitMove' || !G.movable || !G.movable.has(t)) return;  // input lock
+  clearHighlights();
+  G.movable = null; G.state = 'moving';
+  const r = G.resolver; G.resolver = null;
+  r(t);
+}
+
+/* =========================================================================
+   13. SMART AI — priority scoring
+   1 capture · 2 reach home · 3 unlock · 4 safe square / home column · 5 most advanced
+   ========================================================================= */
+function aiChoose(p, movable, d){
+  let best = movable[0], bestScore = -Infinity;
+  for(const t of movable){
+    const np = t.pos === -1 ? 0 : t.pos + d;
+    let s;
+    if(t.pos !== -1 && np <= LAST_TRACK && !SAFE.has(absIdx(p.color,np)) && opponentsAt(p.color, absIdx(p.color,np)).length)
+      s = 1000 + np;                              // 1. capture
+    else if(np === FINISH) s = 800;               // 2. reach home
+    else if(t.pos === -1) s = 600;                // 3. unlock
+    else if(np > LAST_TRACK || SAFE.has(absIdx(p.color,np)))
+      s = 400 + np;                               // 4. safe star / home column
+    else s = 100 + t.pos;                         // 5. advance most-advanced token
+    if(s > bestScore){ bestScore = s; best = t; }
+  }
+  return best;
+}
+
+/* =========================================================================
+   14. MOVE EXECUTION — Token hop → capture slide → effects
+   ========================================================================= */
+async function moveToken(p, t, d, id){
+  const el = t.el;
+  el.style.zIndex = 40;
+  let captured = false, reachedHome = false;
+
+  if(t.pos === -1){
+    // Unlock: arc/pop from base slot to start square
+    t.pos = 0;
+    Sound.unlock();
+    const c = coordOf(t);
+    await arc(el, c.x, c.y, 430, 1.45);
+    alive(id);
+  } else {
+    // Tile-by-tile hop along the exact path
+    const start = t.pos;
+    for(let k=1; k<=d; k++){
+      const c = coordOf(t, start + k);
+      t.pos = start + k;
+      await hop(el, c.x, c.y);
+      alive(id);
+      Sound.hop();
+    }
+  }
+
+  const here = coordOf(t);
+  if(t.pos <= LAST_TRACK){
+    const abs = absIdx(p.color, t.pos);
+    if(SAFE.has(abs)){
+      tileFx(here.x, here.y, 'ripple'); tileFx(here.x, here.y, 'ripple r2', 1100);
+      Sound.safe();
+    } else {
+      const victims = opponentsAt(p.color, abs);
+      if(victims.length){
+        captured = true;
+        Sound.capture();
+        tileFx(here.x, here.y, 'flash', 600);
+        boardWrap.animate([{transform:'translate(0,0)'},{transform:'translate(-5px,2px)'},{transform:'translate(5px,-2px)'},
+                           {transform:'translate(-3px,1px)'},{transform:'translate(0,0)'}], { duration:320 });
+        el.animate([{transform:tf(1)},{transform:tf(1.3)},{transform:tf(1)}], { duration:260 });
+        await wait(220, id);
+        // Captured tokens fly back to their home slots in a curved arc
+        await Promise.all(victims.map(v => {
+          v.pos = -1;
+          v.el.style.zIndex = 35;
+          const c = coordOf(v);
+          return arc(v.el, c.x, c.y, 560, 1.3).then(() => { v.el.style.zIndex = ''; });
+        }));
+        alive(id);
+      }
+    }
+  } else if(t.pos === FINISH){
+    reachedHome = true;
+    Sound.home();
+    Confetti.burst(here.x/15*boardPx, here.y/15*boardPx, 70, [COL[p.color].c, '#fff', '#ffd54f', COL[p.color].l], 1);
+  }
+
+  el.style.zIndex = '';
+  await layoutTokens(180);
+  alive(id);
+  return { captured, reachedHome };
+}
+
+/* =========================================================================
+   15. TURN LOOP — Dice Roll → Token Hop → Capture → Next Turn
+   ========================================================================= */
+function nextTurn(){
+  G.six = 0;
+  do { G.turn = (G.turn + 1) % G.players.length; } while(G.players[G.turn].finished);
+}
+
+async function gameLoop(id){
+  try{
+    while(true){
+      const p = G.players[G.turn];
+      setTurnUI(p);
+
+      // --- Roll ---
+      let value;
+      if(p.type === 'bot'){
+        setMsg(`${pname(p)} bot is rolling…`);
+        await wait(600, id);
+        value = await rollDice(id);
+      } else {
+        setMsg(G.six ? `Bonus roll! Tap the die.` : `Your turn — tap the die (or press Space).`);
+        await waitHumanRoll(id);
+        value = await rollDice(id);
+      }
+      setMsg(`${pname(p)} rolled a ${value}.`);
+
+      // --- Three-sixes rule ---
+      if(value === 6){
+        G.six++;
+        if(G.six === 3){
+          setMsg(`Three 6s in a row! ${pname(p)}'s turn is forfeited.`);
+          Sound.bad();
+          await wait(1100, id);
+          nextTurn(); continue;
+        }
+      }
+
+      // --- Determine valid moves ---
+      const movable = p.tokens.filter(t => canMove(t, value));
+      if(!movable.length){
+        setMsg(`${pname(p)} rolled a ${value} — no valid moves.`);
+        await wait(950, id);
+        if(value === 6) continue;          // a 6 still earns the extra roll
+        nextTurn(); continue;
+      }
+
+      // --- Choose token ---
+      let tok;
+      const distinct = new Set(movable.map(keyOf).map(k => k[0] === 'b' ? 'base' : k));
+      if(p.type === 'bot'){
+        await wait(350, id);
+        tok = aiChoose(p, movable, value);
+      } else if(distinct.size === 1){
+        setMsg(`${pname(p)} rolled a ${value} — only one move, auto-moving…`);
+        movable.forEach(t => t.el.classList.add('movable'));
+        await wait(480, id);
+        clearHighlights();
+        tok = movable[0];
+      } else {
+        setMsg(`You rolled a ${value} — pick a glowing token.`);
+        tok = await waitHumanToken(movable, id);
+      }
+
+      // --- Move ---
+      G.state = 'moving';
+      const res = await moveToken(p, tok, value, id);
+
+      // --- Player finished? ---
+      if(!p.finished && p.tokens.every(t => t.pos === FINISH)){
+        p.finished = true;
+        G.rankings.push(p);
+        const place = ['1st','2nd','3rd','4th'][G.rankings.length-1];
+        setMsg(`🎉 ${pname(p)} finishes ${place}!`);
+        Sound.victory();
+        bigConfetti();
+        await wait(1300, id);
+        const remaining = G.players.filter(q => !q.finished);
+        if(remaining.length <= 1){
+          remaining.forEach(q => { q.finished = true; G.rankings.push(q); });
+          showPodium();
+          return;
+        }
+        nextTurn(); continue;
+      }
+
+      // --- Bonus roll? (6, capture, or token reaching home) ---
+      if(value === 6 || res.captured || res.reachedHome){
+        if(value !== 6) G.six = 0;
+        const why = res.captured ? 'Capture' : res.reachedHome ? 'Token home' : 'Rolled a 6';
+        setMsg(`${why}! ${pname(p)} gets a bonus roll.`);
+        await wait(450, id);
+        continue;
+      }
+      nextTurn();
+    }
+  } catch(e){
+    if(e !== CANCEL) console.error(e);
+  }
+}
+
+/* =========================================================================
+   16. GAME SETUP / RESTART / PODIUM
+   ========================================================================= */
+function bigConfetti(){
+  const s = boardPx;
+  [[.25,.3],[.75,.3],[.5,.5],[.3,.75],[.7,.75]].forEach(([x,y],i) =>
+    setTimeout(() => Confetti.burst(s*x, s*y, 60, undefined, 1.3), i*120));
+}
+
+function startGame(){
+  const colors = setup.n === 2 ? ['red','yellow'] : [...ORDER];
+  gameId++;
+  const id = gameId;
+  tokensEl.innerHTML = ''; fxEl.innerHTML = '';
+  G = {
+    config:{ colors },
+    players: colors.map(color => ({ color, type:setup.types[color], finished:false, tokens:[] })),
+    turn:0, six:0, rankings:[], state:'idle', resolver:null, movable:null
+  };
+  for(const p of G.players)
+    for(let i=0;i<4;i++){ const t = { color:p.color, idx:i, pos:-1, el:null }; t.el = makeTokenEl(t); p.tokens.push(t); }
+
+  overlay.classList.remove('show');
+  podium.classList.remove('show');
+  diceBox.classList.remove('ready');
+  drawBoard();
+  layoutTokens(0);
+  // Pop-in entrance for tokens
+  allTokens().forEach((t,i) => t.el.animate([{transform:tf(0)},{transform:tf(1.2)},{transform:tf(1)}],
+                                            { duration:380, delay:i*35, easing:'ease-out', fill:'backwards' }));
+  gameLoop(id);
+}
+
+function showMenu(){
+  gameId++;                         // cancel any running game loop
+  if(G){ G.state = 'idle'; G.resolver = null; }
+  diceBox.classList.remove('ready');
+  baseGlow.style.opacity = 0;
+  podium.classList.remove('show');
+  renderSetup();
+  overlay.classList.add('show');
+}
+
+function showPodium(){
+  G.state = 'over';
+  baseGlow.style.opacity = 0;
+  const medals = ['🥇','🥈','🥉','4th'];
+  $('rankList').innerHTML = G.rankings.map((p,i) => `
+    <div class="rank r${i+1}" style="animation-delay:${i*.12}s">
+      <span class="medal">${medals[i]}</span>
+      <span class="dot" style="background:${COL[p.color].c}"></span>
+      <b>${COL[p.color].name}</b>
+      <span class="ptype">${p.type === 'bot' ? 'Bot 🤖' : 'Human'}</span>
+    </div>`).join('');
+  setMsg(`Game over — ${pname(G.rankings[0])} wins!`);
+  podium.classList.add('show');
+  bigConfetti();
+}
+
+function renderSetup(){
+  document.querySelectorAll('#modeSeg button').forEach(b => b.classList.toggle('on', +b.dataset.n === setup.n));
+  const colors = setup.n === 2 ? ['red','yellow'] : ORDER;
+  $('playerRows').innerHTML = colors.map(c => `
+    <div class="prow">
+      <span class="pname"><span class="dot" style="background:${COL[c].c}"></span>${COL[c].name}</span>
+      <div class="seg small" data-color="${c}">
+        <button data-type="human" class="${setup.types[c]==='human'?'on':''}">🧑 Human</button>
+        <button data-type="bot" class="${setup.types[c]==='bot'?'on':''}">🤖 Bot</button>
+      </div>
+    </div>`).join('');
+}
+
+/* =========================================================================
+   17. EVENT WIRING & BOOT
+   ========================================================================= */
+$('modeSeg').addEventListener('click', e => {
+  const b = e.target.closest('button'); if(!b) return;
+  setup.n = +b.dataset.n; renderSetup();
+});
+$('playerRows').addEventListener('click', e => {
+  const b = e.target.closest('button'); if(!b) return;
+  const color = b.parentElement.dataset.color;
+  setup.types[color] = b.dataset.type; renderSetup();
+});
+$('startBtn').addEventListener('click', () => { Sound.init(); startGame(); });
+$('againBtn').addEventListener('click', () => { Sound.init(); startGame(); });
+$('podiumMenuBtn').addEventListener('click', showMenu);
+$('restartBtn').addEventListener('click', () => { Sound.init(); G ? startGame() : showMenu(); });
+$('menuBtn').addEventListener('click', showMenu);
+$('muteBtn').addEventListener('click', e => {
+  Sound.init();
+  Sound.muted = !Sound.muted;
+  e.currentTarget.textContent = Sound.muted ? '🔇 Muted' : '🔊 Sound';
+});
+diceBox.addEventListener('click', onDiceClick);
+document.addEventListener('keydown', e => {
+  if((e.code === 'Space' || e.code === 'Enter') && G && G.state === 'awaitRoll'){ e.preventDefault(); onDiceClick(); }
+});
+document.addEventListener('pointerdown', () => Sound.init(), { once:true });
+
+buildDice();
+renderSetup();
+if('ResizeObserver' in window) new ResizeObserver(() => layout()).observe(app);
+else window.addEventListener('resize', layout);
+layout();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Arcade</title>
+<meta name="description" content="Free browser games and tools. No downloads, no sign-ups, just vibes.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<style>
+/* =========================================================================
+   THE ARCADE — hub page
+   Style: neo-brutalist "sticker sheet" — thick ink borders, hard offset
+   shadows, loud flat colours, rotated stickers, scrolling ticker.
+   To add a game: push an object into the GAMES array in the <script>.
+   ========================================================================= */
+:root{
+  --ink:#111;
+  --paper:#f6f1e7;
+  --card:#fffdf8;
+  --lime:#c6ff3d;
+  --pink:#ff5fa2;
+  --blue:#5b8cff;
+  --orange:#ff8a3d;
+  --purple:#a879ff;
+  --yellow:#ffd23f;
+  --muted:#5c574e;
+  --grid:rgba(17,17,17,.06);
+  --shadow:6px 6px 0 var(--ink);
+  --display:"Bricolage Grotesque",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --ink:#f4efe6; --paper:#121212; --card:#1c1c1c; --muted:#a8a296; --grid:rgba(255,255,255,.05);
+  }
+}
+:root[data-theme="dark"]{
+  --ink:#f4efe6; --paper:#121212; --card:#1c1c1c; --muted:#a8a296; --grid:rgba(255,255,255,.05);
+}
+
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  margin:0; min-height:100vh; color:var(--ink); font-family:var(--display);
+  background-color:var(--paper);
+  background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);
+  background-size:28px 28px;
+  -webkit-font-smoothing:antialiased;
+}
+a{color:inherit}
+button{font:inherit;color:inherit}
+.wrap{max-width:1180px;margin:0 auto;padding:0 20px}
+:focus-visible{outline:3px dashed var(--pink);outline-offset:3px}
+
+/* ---------- Ticker ---------- */
+.ticker{background:var(--ink);color:var(--paper);overflow:hidden;white-space:nowrap;font-family:var(--mono);font-size:13px;font-weight:700;
+  border-bottom:3px solid var(--ink)}
+.ticker-track{display:inline-flex;gap:36px;padding:9px 0;animation:tick 32s linear infinite}
+.ticker span{display:inline-flex;align-items:center;gap:36px}
+.ticker i{font-style:normal;color:var(--lime)}
+@keyframes tick{to{transform:translateX(-50%)}}
+
+/* ---------- Nav ---------- */
+nav{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:18px 0}
+.logo{display:flex;align-items:center;gap:10px;text-decoration:none;font-weight:800;font-size:22px;letter-spacing:-.02em}
+.logo-mark{width:38px;height:38px;border:3px solid var(--ink);border-radius:10px;background:var(--lime);display:grid;place-items:center;
+  box-shadow:3px 3px 0 var(--ink);transform:rotate(-6deg);font-size:20px;color:#111}
+.nav-right{display:flex;gap:10px;align-items:center}
+.pill{border:3px solid var(--ink);background:var(--card);border-radius:999px;padding:8px 14px;font-weight:700;font-size:14px;cursor:pointer;
+  box-shadow:3px 3px 0 var(--ink);transition:transform .12s,box-shadow .12s;text-decoration:none;display:inline-flex;align-items:center;gap:6px}
+.pill:hover{transform:translate(-2px,-2px);box-shadow:5px 5px 0 var(--ink)}
+.pill:active{transform:translate(3px,3px);box-shadow:0 0 0 var(--ink)}
+.pill.lucky{background:var(--yellow);color:#111}
+
+/* ---------- Hero ---------- */
+.hero{position:relative;padding:40px 0 30px}
+.eyebrow{display:inline-block;font-family:var(--mono);font-size:13px;font-weight:700;border:2px solid var(--ink);border-radius:6px;padding:4px 10px;
+  background:var(--card);transform:rotate(-1.5deg)}
+.dot-live{display:inline-block;width:8px;height:8px;border-radius:50%;background:#1fd65f;margin-right:6px;animation:blink 1.4s infinite}
+@keyframes blink{50%{opacity:.25}}
+h1{font-size:clamp(48px,10vw,124px);line-height:.9;letter-spacing:-.05em;margin:18px 0 18px;font-weight:800}
+h1 .hl{background:var(--pink);color:#111;padding:0 .12em;border:4px solid var(--ink);border-radius:.18em;display:inline-block;transform:rotate(-2deg);
+  box-shadow:var(--shadow)}
+h1 .scribble{position:relative;white-space:nowrap}
+h1 .scribble::after{content:"";position:absolute;left:-2%;right:-2%;bottom:.04em;height:.14em;background:var(--lime);z-index:-1;border-radius:4px;transform:rotate(-1deg)}
+.hero p{font-size:clamp(17px,2.2vw,21px);max-width:560px;color:var(--muted);margin:0;line-height:1.45}
+.hero p b{color:var(--ink)}
+
+/* Stickers floating around the hero */
+.sticker{position:absolute;border:3px solid var(--ink);border-radius:14px;padding:8px 14px;font-weight:800;font-size:15px;box-shadow:4px 4px 0 var(--ink);
+  user-select:none;color:#111;animation:float 5s ease-in-out infinite}
+.s1{top:30px;right:4%;background:var(--lime);transform:rotate(8deg)}
+.s2{bottom:24px;right:40%;background:var(--blue);color:#fff;transform:rotate(-7deg);animation-delay:-1.5s}
+.s3{bottom:30px;right:4%;background:var(--orange);transform:rotate(4deg);animation-delay:-3s;border-radius:999px}
+@keyframes float{50%{translate:0 -10px}}
+@media (max-width:1000px){.sticker{display:none}}
+
+/* ---------- Toolbar: search + filter chips ---------- */
+.toolbar{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;margin:34px 0 22px}
+.search{flex:1 1 280px;max-width:420px;display:flex;align-items:center;gap:10px;border:3px solid var(--ink);border-radius:14px;background:var(--card);
+  padding:0 12px;box-shadow:4px 4px 0 var(--ink)}
+.search input{flex:1;border:0;background:transparent;outline:none;font:inherit;font-size:16px;color:var(--ink);padding:12px 0;min-width:0}
+.search input::placeholder{color:var(--muted)}
+.kbd{font-family:var(--mono);font-size:12px;border:2px solid var(--ink);border-radius:6px;padding:1px 7px;opacity:.7}
+.chips{display:flex;gap:8px;flex-wrap:wrap}
+.chip{border:3px solid var(--ink);background:var(--card);border-radius:999px;padding:7px 14px;font-weight:700;font-size:14px;cursor:pointer;transition:transform .1s}
+.chip:hover{transform:rotate(-2deg) scale(1.04)}
+.chip.on{background:var(--ink);color:var(--paper)}
+
+/* ---------- Section heading ---------- */
+.sec-head{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin:0 0 16px}
+.sec-head h2{margin:0;font-size:28px;letter-spacing:-.03em}
+.count{font-family:var(--mono);font-size:13px;color:var(--muted)}
+
+/* ---------- Game grid & cards ---------- */
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:26px;padding-bottom:20px}
+.card{position:relative;display:flex;flex-direction:column;text-decoration:none;background:var(--card);border:3px solid var(--ink);border-radius:20px;
+  box-shadow:var(--shadow);overflow:hidden;transition:transform .16s cubic-bezier(.3,1.6,.5,1),box-shadow .16s;
+  animation:enter .5s both cubic-bezier(.2,1.3,.4,1)}
+@keyframes enter{from{opacity:0;transform:translateY(24px) rotate(var(--r,0deg))}}
+.card:nth-child(odd){--r:-1.2deg}
+.card:nth-child(even){--r:1.2deg}
+a.card:hover{transform:translate(-3px,-3px) rotate(var(--r));box-shadow:10px 10px 0 var(--ink)}
+a.card:active{transform:translate(4px,4px);box-shadow:1px 1px 0 var(--ink)}
+.card.soon{cursor:not-allowed}
+.card.soon .thumb{filter:grayscale(.85) contrast(.9)}
+.thumb{position:relative;aspect-ratio:16/10;border-bottom:3px solid var(--ink);display:grid;place-items:center;overflow:hidden}
+.thumb .emoji{font-size:64px;filter:drop-shadow(3px 3px 0 rgba(0,0,0,.35));transition:transform .25s}
+a.card:hover .thumb .emoji{transform:scale(1.15) rotate(-8deg)}
+.badge{position:absolute;top:10px;left:10px;font-family:var(--mono);font-size:11px;font-weight:700;border:2px solid #111;border-radius:6px;padding:3px 8px;
+  background:#fff;color:#111;text-transform:uppercase;letter-spacing:.04em}
+.badge.new{background:var(--lime)}
+.badge.soon{background:#111;color:#fff;border-color:#111}
+.recent{position:absolute;top:10px;right:10px;font-family:var(--mono);font-size:11px;font-weight:700;background:var(--yellow);color:#111;border:2px solid #111;
+  border-radius:6px;padding:3px 8px;transform:rotate(4deg)}
+.body{padding:14px 16px 16px;display:flex;flex-direction:column;gap:8px;flex:1}
+.title-row{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.card h3{margin:0;font-size:22px;letter-spacing:-.02em}
+.arrow{width:34px;height:34px;flex:none;border:3px solid var(--ink);border-radius:50%;display:grid;place-items:center;font-weight:800;transition:transform .2s,background .2s}
+a.card:hover .arrow{transform:rotate(-45deg);background:var(--lime);color:#111}
+.desc{margin:0;color:var(--muted);font-size:15px;line-height:1.4}
+.tags{display:flex;gap:6px;flex-wrap:wrap;margin-top:auto;padding-top:4px}
+.tag{font-family:var(--mono);font-size:11px;font-weight:700;border:2px solid var(--ink);border-radius:999px;padding:2px 9px}
+
+/* Mini Ludo board drawn in CSS for the Ludo thumbnail */
+.mini-ludo{width:46%;aspect-ratio:1;border:3px solid #111;border-radius:10px;background:#fff;display:grid;grid-template:1fr .7fr 1fr/1fr .7fr 1fr;
+  box-shadow:4px 4px 0 #111;transform:rotate(-6deg);transition:transform .3s}
+a.card:hover .mini-ludo{transform:rotate(6deg) scale(1.06)}
+.mini-ludo>div{display:grid;place-items:center}
+.mini-ludo .b{border:2px solid #111}
+.mini-ludo .b::after{content:"";width:34%;aspect-ratio:1;border-radius:50%;background:#fff;border:2px solid #111}
+.mini-ludo .c{background:conic-gradient(from 45deg,#fbc02d 0 25%,#1e88e5 0 50%,#e53935 0 75%,#43a047 0)}
+
+.empty{display:none;text-align:center;padding:50px 20px;border:3px dashed var(--ink);border-radius:20px;font-size:18px}
+.empty.show{display:block}
+
+/* ---------- Footer ---------- */
+footer{margin-top:50px;border-top:3px solid var(--ink);padding:26px 0 40px;display:flex;flex-wrap:wrap;gap:12px;justify-content:space-between;align-items:center;
+  font-family:var(--mono);font-size:13px;color:var(--muted)}
+footer b{color:var(--ink)}
+
+/* ---------- Toast ---------- */
+.toast{position:fixed;left:50%;bottom:24px;translate:-50% 140%;background:var(--ink);color:var(--paper);border-radius:12px;padding:12px 18px;font-weight:700;
+  transition:translate .35s cubic-bezier(.2,1.4,.4,1),visibility .35s;visibility:hidden;z-index:50;max-width:calc(100% - 32px);text-align:center}
+.toast.show{translate:-50% 0;visibility:visible}
+
+@media (max-width:560px){
+  .wrap{padding:0 16px}
+  .pill .label{display:none}
+  .grid{gap:20px}
+  .toolbar{margin-top:24px}
+}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation:none!important;transition:none!important}
+}
+</style>
+</head>
+<body>
+
+<!-- Scrolling ticker -->
+<div class="ticker" aria-hidden="true">
+  <div class="ticker-track">
+    <span>★ NO DOWNLOADS <i>✦</i> NO SIGN-UPS <i>✦</i> NO ADS IN YOUR FACE <i>✦</i> JUST TAP &amp; PLAY <i>✦</i> PLAY WITH YOUR FRIENDS OR THE BOTS <i>✦</i></span>
+    <span>★ NO DOWNLOADS <i>✦</i> NO SIGN-UPS <i>✦</i> NO ADS IN YOUR FACE <i>✦</i> JUST TAP &amp; PLAY <i>✦</i> PLAY WITH YOUR FRIENDS OR THE BOTS <i>✦</i></span>
+  </div>
+</div>
+
+<div class="wrap">
+  <nav>
+    <a class="logo" href="./"><span class="logo-mark">◆</span>the arcade</a>
+    <div class="nav-right">
+      <button class="pill lucky" id="luckyBtn" title="Open a random game">🎲 <span class="label">Random game</span></button>
+      <button class="pill" id="themeBtn" title="Switch light / dark" aria-label="Switch light or dark mode">🌙</button>
+    </div>
+  </nav>
+
+  <header class="hero">
+    <span class="eyebrow"><span class="dot-live"></span>new games every week</span>
+    <h1>games for when<br>you're <span class="hl">bored</span> <span class="scribble">fr.</span></h1>
+    <p>Quick <b>browser games &amp; tools</b>, all free. No app, no account. Open one, play a round, come back later.</p>
+    <div class="sticker s1">100% free ✌️</div>
+    <div class="sticker s2">no login</div>
+    <div class="sticker s3">works on phone 📱</div>
+  </header>
+
+  <div class="toolbar">
+    <label class="search">
+      <span aria-hidden="true">⌕</span>
+      <input id="q" type="search" placeholder="search games & tools…" autocomplete="off" aria-label="Search games and tools">
+      <span class="kbd" aria-hidden="true">/</span>
+    </label>
+    <div class="chips" id="chips" role="tablist" aria-label="Filter"></div>
+  </div>
+
+  <div class="sec-head">
+    <h2 id="secTitle">everything</h2>
+    <span class="count" id="count"></span>
+  </div>
+  <main class="grid" id="grid"></main>
+  <div class="empty" id="empty">nothing matches that 😶‍🌫️ try a different word</div>
+
+  <footer>
+    <span>© <span id="yr"></span> <b>the arcade</b>. made for fun.</span>
+    <span>press <b>/</b> to search · <b>R</b> for a random game</span>
+  </footer>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+/* =========================================================================
+   GAME LIST: the only place you need to edit.
+   href   : folder path (e.g. "ludo/" → arcade/ludo/index.html)
+   status : "live" | "new" | "soon"   ("soon" cards are not clickable)
+   type   : "game" | "tool"
+   thumb  : "ludo" for the drawn mini board, otherwise use emoji + bg
+   ========================================================================= */
+const GAMES = [
+  { id:'ludo', title:'Ludo', href:'ludo/', type:'game', status:'new', thumb:'ludo', bg:'#ffd23f',
+    desc:'The classic board game. Roll a 6 to get out, knock rivals home, race to the middle.',
+    tags:['2–4 players','vs bots','board'] },
+
+  // Placeholders: change status to "live" or "new" and set href once each game is built.
+  { id:'snake', title:'Snake', href:'snake/', type:'game', status:'soon', emoji:'🐍', bg:'#c6ff3d',
+    desc:'Eat, grow, don\'t bite yourself. Simple and hard to put down.', tags:['solo','arcade'] },
+  { id:'2048', title:'2048', href:'2048/', type:'game', status:'soon', emoji:'🔢', bg:'#ff8a3d',
+    desc:'Slide the tiles and merge matching numbers until you hit 2048.', tags:['solo','puzzle'] },
+  { id:'tictactoe', title:'Tic-Tac-Toe', href:'tictactoe/', type:'game', status:'soon', emoji:'❌', bg:'#5b8cff',
+    desc:'X vs O. Play a friend on the same phone, or try to beat the bot.', tags:['2 players','vs bot'] },
+  { id:'memory', title:'Memory Flip', href:'memory/', type:'game', status:'soon', emoji:'🃏', bg:'#ff5fa2',
+    desc:'Flip the cards and find the pairs. Fewer moves, better score.', tags:['solo','brain'] },
+  { id:'pomodoro', title:'Focus Timer', href:'pomodoro/', type:'tool', status:'soon', emoji:'⏳', bg:'#a879ff',
+    desc:'25 minutes of focus, 5 minutes of break. Repeat.', tags:['tool','study'] },
+];
+
+const FILTERS = [
+  { id:'all',  label:'all',     title:'everything',  test:() => true },
+  { id:'game', label:'games',   title:'games',       test:g => g.type === 'game' },
+  { id:'tool', label:'tools',   title:'tools',       test:g => g.type === 'tool' },
+  { id:'live', label:'play now',title:'ready to play',test:g => g.status !== 'soon' },
+];
+
+/* ---------- small helpers ---------- */
+const $ = id => document.getElementById(id);
+const store = {
+  get(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } },
+  set(k,v){ try{ localStorage.setItem(k,v); }catch(e){} }
+};
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+let filter = 'all';
+
+function toast(msg){
+  const t = $('toast'); t.textContent = msg; t.classList.add('show');
+  clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+/* ---------- render ---------- */
+function thumbHTML(g){
+  const inner = g.thumb === 'ludo'
+    ? `<div class="mini-ludo">
+         <div class="b" style="background:#e53935"></div><div></div><div class="b" style="background:#43a047"></div>
+         <div></div><div class="c"></div><div></div>
+         <div class="b" style="background:#1e88e5"></div><div></div><div class="b" style="background:#fbc02d"></div>
+       </div>`
+    : `<span class="emoji">${g.emoji || '🎮'}</span>`;
+  const badge = g.status === 'soon' ? '<span class="badge soon">coming soon</span>'
+              : g.status === 'new'  ? '<span class="badge new">new ✦</span>'
+              : '<span class="badge">play</span>';
+  const recent = store.get('arcade:last') === g.id && g.status !== 'soon' ? '<span class="recent">last played</span>' : '';
+  return `<div class="thumb" style="background:${g.bg}">${badge}${recent}${inner}</div>`;
+}
+
+function render(){
+  const q = $('q').value.trim().toLowerCase();
+  const f = FILTERS.find(x => x.id === filter);
+  const list = GAMES.filter(g => f.test(g) &&
+    (!q || (g.title + ' ' + g.desc + ' ' + g.tags.join(' ')).toLowerCase().includes(q)));
+
+  // playable first, coming-soon last
+  list.sort((a,b) => (a.status === 'soon') - (b.status === 'soon'));
+
+  $('grid').innerHTML = list.map((g,i) => {
+    const soon = g.status === 'soon';
+    const tag = soon ? 'div' : 'a';
+    const attrs = soon ? 'aria-disabled="true"' : `href="${esc(g.href)}"`;
+    return `<${tag} class="card${soon ? ' soon' : ''}" ${attrs} data-id="${esc(g.id)}" style="animation-delay:${i*60}ms">
+      ${thumbHTML(g)}
+      <div class="body">
+        <div class="title-row"><h3>${esc(g.title)}</h3><span class="arrow" aria-hidden="true">${soon ? '…' : '→'}</span></div>
+        <p class="desc">${esc(g.desc)}</p>
+        <div class="tags">${g.tags.map(t => `<span class="tag">${esc(t)}</span>`).join('')}</div>
+      </div>
+    </${tag}>`;
+  }).join('');
+
+  $('secTitle').textContent = f.title;
+  $('count').textContent = `${list.length} ${list.length === 1 ? 'thing' : 'things'}`;
+  $('empty').classList.toggle('show', list.length === 0);
+}
+
+function renderChips(){
+  $('chips').innerHTML = FILTERS.map(f =>
+    `<button class="chip${f.id === filter ? ' on' : ''}" role="tab" aria-selected="${f.id === filter}" data-f="${f.id}">${f.label}</button>`).join('');
+}
+
+/* ---------- interactions ---------- */
+$('chips').addEventListener('click', e => {
+  const b = e.target.closest('.chip'); if(!b) return;
+  filter = b.dataset.f; renderChips(); render();
+});
+$('q').addEventListener('input', render);
+
+$('grid').addEventListener('click', e => {
+  const card = e.target.closest('.card'); if(!card) return;
+  if(card.classList.contains('soon')){
+    const g = GAMES.find(x => x.id === card.dataset.id);
+    toast(`${g.title} isn't ready yet, check back soon 👀`);
+    card.animate([{transform:'translateX(0)'},{transform:'translateX(-6px)'},{transform:'translateX(6px)'},{transform:'translateX(0)'}],{duration:260});
+    return;
+  }
+  store.set('arcade:last', card.dataset.id);
+});
+
+function luckyPick(){
+  const live = GAMES.filter(g => g.status !== 'soon');
+  if(!live.length){ toast('no games live yet'); return; }
+  const g = live[Math.floor(Math.random()*live.length)];
+  toast(`🎲 opening ${g.title}…`);
+  store.set('arcade:last', g.id);
+  setTimeout(() => { location.href = g.href; }, 650);
+}
+$('luckyBtn').addEventListener('click', luckyPick);
+
+/* theme toggle: remembers your choice in this browser */
+function applyTheme(t){ if(t) document.documentElement.setAttribute('data-theme', t); }
+applyTheme(store.get('arcade:theme'));
+$('themeBtn').addEventListener('click', () => {
+  const cur = document.documentElement.getAttribute('data-theme')
+    || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+  const next = cur === 'dark' ? 'light' : 'dark';
+  applyTheme(next); store.set('arcade:theme', next); syncThemeIcon();
+});
+function syncThemeIcon(){
+  const dark = (document.documentElement.getAttribute('data-theme')
+    || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')) === 'dark';
+  $('themeBtn').textContent = dark ? '☀️' : '🌙';
+}
+syncThemeIcon();
+
+/* keyboard: "/" focuses search, "R" picks a random game */
+document.addEventListener('keydown', e => {
+  const typing = document.activeElement === $('q');
+  if(e.key === '/' && !typing){ e.preventDefault(); $('q').focus(); }
+  else if(e.key === 'Escape' && typing){ $('q').value = ''; $('q').blur(); render(); }
+  else if((e.key === 'r' || e.key === 'R') && !typing && !e.metaKey && !e.ctrlKey) luckyPick();
+});
+
+$('yr').textContent = new Date().getFullYear();
+renderChips();
+render();
+</script>
+</body>
+</html>
